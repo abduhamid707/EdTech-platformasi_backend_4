@@ -213,147 +213,57 @@ class CourseController {
 
   static async createAIEnrollReaply(req, res, next) {
     try {
-      const { message } = req.body
-
-      // 🔍 AI orqali Email va Course nomini ajratib olish
+      const { message } = req.body;
+  
+      // 🔍 AI orqali Email va Kurs nomini ajratish
       const aiExtractResponse = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content:
-              "Siz foydalanuvchi matnidan faqat Email va Course nomini ajratib oladigan AI botsiz. Agar email yoki kurs nomi bo‘lmasa, 'not found' deb qaytaring.",
+            content: "Foydalanuvchi matnidan faqat Email va Course nomini ajratib oling. Agar topilmasa, 'not found' deb qaytaring.",
           },
           {
             role: 'user',
-            content: `Matnni analiz qiling va faqat Email va Course nomini ajrating: "${message}"`,
+            content: `Matn: "${message}". Natijani quyidagi formatda qaytaring: Email: ..., Course: ...`,
           },
         ],
-      })
-
-      const extractedText = aiExtractResponse.choices[0].message.content
-      // 📌 Ma'lumotlarni ajratish
-      const emailMatch = extractedText.match(
-        /Email:\s*([\w._%+-]+@[\w.-]+\.[a-zA-Z]{2,})/i
-      )
-      const email = emailMatch ? emailMatch[1].trim() : null
-
-      const courseMatch = extractedText.match(/Course:\s*(.+)/i)
-      const courseTitle = courseMatch ? courseMatch[1].trim() : null
-
-      // 🔍 Agar email yoki kurs nomi yetarli bo‘lmasa, AI javob yozadi
+      });
+  
+      const extractedText = aiExtractResponse.choices[0].message.content;
+      const emailMatch = extractedText.match(/Email:\s*([\w._%+-]+@[\w.-]+\.[a-zA-Z]{2,})/i);
+      const courseMatch = extractedText.match(/Course:\s*(.+)/i);
+  
+      const email = emailMatch ? emailMatch[1].trim() : null;
+      const courseTitle = courseMatch ? courseMatch[1].trim() : null;
+  
       if (!email || !courseTitle) {
-        const aiMissingFieldsResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Siz foydalanuvchiga AI javob yozadigan botsiz.',
-            },
-            {
-              role: 'user',
-              content: `Foydalanuvchi yetarli ma'lumot bermadi. Shunga mos javob yozing qisqaroq.`,
-            },
-          ],
-        })
-
-        return res
-          .status(400)
-          .json({ error: aiMissingFieldsResponse.choices[0].message.content })
+        return res.status(400).json({ error: "Email yoki kurs nomi topilmadi." });
       }
-
-      // 🔍 Studentni topish (faqat email orqali)
-      const student = await Student.findOne({ email })
-
-      if (!student) {
-        const aiNotFoundResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Siz foydalanuvchiga AI javob yozadigan botsiz.',
-            },
-            {
-              role: 'user',
-              content: `Foydalanuvchi "${email}" bilan tizimda topilmadi. Shunga mos javob yozing qisqaroq.`,
-            },
-          ],
-        })
-
-        return res
-          .status(404)
-          .json({ error: aiNotFoundResponse.choices[0].message.content })
-      }
-
-      // 🔍 Kursni topish (faqat kurs nomi orqali)
-      const course = await Course.findOne({ title: courseTitle })
-
-      if (!course) {
-        const aiCourseNotFoundResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Siz foydalanuvchiga AI javob yozadigan botsiz.',
-            },
-            {
-              role: 'user',
-              content: `Foydalanuvchi "${courseTitle}" kursini topa olmadi. Shunga mos javob yozing qisqaroq.`,
-            },
-          ],
-        })
-
-        return res
-          .status(404)
-          .json({ error: aiCourseNotFoundResponse.choices[0].message.content })
-      }
-
-      // 🔄 Studentni kursga qo‘shish
+  
+      // 🔍 Student va kursni topish
+      const student = await Student.findOne({ email });
+      if (!student) return res.status(404).json({ error: `"${email}" tizimda topilmadi.` });
+  
+      const course = await Course.findOne({ title: courseTitle });
+      if (!course) return res.status(404).json({ error: `"${courseTitle}" kursi topilmadi.` });
+  
+      // 🔄 Student allaqachon kursga yozilganmi?
       if (student.enrolledCourses.includes(course._id)) {
-        const aiAlreadyEnrolledResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'Siz foydalanuvchiga AI javob yozadigan botsiz.',
-            },
-            {
-              role: 'user',
-              content: `Foydalanuvchi "${email}" allaqachon "${course.title}" kursiga yozilgan. Shunga mos javob yozing qisqaroq.`,
-            },
-          ],
-        })
-
-        return res
-          .status(400)
-          .json({ error: aiAlreadyEnrolledResponse.choices[0].message.content })
+        return res.status(400).json({ error: `"${email}" allaqachon "${courseTitle}" kursiga yozilgan.` });
       }
-
-      student.enrolledCourses.push(course._id)
-      await student.save()
-
-      // 🔥 AI muvaffaqiyatli enroll qilish haqida javob yozadi
-      const aiSuccessResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'Siz foydalanuvchiga AI javob yozadigan botsiz.',
-          },
-          {
-            role: 'user',
-            content: `Foydalanuvchi "${email}" "${course.title}" kursiga muvaffaqiyatli yozildi. Shunga mos javob yozing qisqaroq.`,
-          },
-        ],
-      })
-
-      return res
-        .status(200)
-        .json({ message: aiSuccessResponse.choices[0].message.content })
+  
+      // ✅ Kursga yozish
+      student.enrolledCourses.push(course._id);
+      await student.save();
+  
+      return res.status(200).json({ message: `"${email}" "${courseTitle}" kursiga muvaffaqiyatli yozildi.` });
+  
     } catch (error) {
-      next(error)
+      next(error);
     }
   }
+  
 }
 
 export default CourseController
