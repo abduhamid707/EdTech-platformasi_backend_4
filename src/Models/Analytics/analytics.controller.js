@@ -15,7 +15,7 @@ class AnalyticsController {
         { $limit: 5 },
         {
           $lookup: {
-            from: 'courses', // Kurslar kolleksiyasi
+            from: 'courses', 
             localField: '_id',
             foreignField: '_id',
             as: 'course',
@@ -25,7 +25,7 @@ class AnalyticsController {
           $project: {
             _id: 1,
             count: 1,
-            title: { $arrayElemAt: ['$course.title', 0] }, // Kurs titleni olish
+            title: { $arrayElemAt: ['$course.title', 0] }, 
           },
         },
       ])

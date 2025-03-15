@@ -8,7 +8,7 @@ router.post('/', async (req, res, next) => {
   try {
     const { message } = req.body;
 
-    // 🔍 AI orqali foydalanuvchi so‘rovini analiz qilish
+
     const aiRoleResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
